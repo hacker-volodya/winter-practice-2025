@@ -1,0 +1,31 @@
+#include "imports/stdlib.fc";
+
+const gas_cost = 10000000;
+
+() send(slice addr, slice body, int grams) impure inline_ref {
+  ;; int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool src:MsgAddress -> 011000
+  var msg = begin_cell()
+    .store_uint(0x18, 6)
+    .store_slice(addr)
+    .store_coins(grams)
+    .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 32)
+    .store_slice(body);
+  send_raw_message(msg.end_cell(), SEND_MODE_REGULAR);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    slice msg = in_msg_full.begin_parse();
+    int flags = msg~load_uint(4);
+    if (flags & 1) {
+        return ();
+    }
+    slice source_address = msg~load_msg_addr();
+    if (rand(10) < 4) {
+        if (msg_value * 2 < my_balance - gas_cost) {
+            send(source_address, "you won", msg_value * 2);
+        } else {
+            send(source_address, "vault is empty", my_balance - gas_cost);
+        }
+        return ();
+    }
+}

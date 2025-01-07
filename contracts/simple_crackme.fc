@@ -1,0 +1,43 @@
+#include "imports/stdlib.fc";
+
+const op::comment = 0;
+
+const gas_cost = 10000000;
+
+() send_message_back(slice addr, slice body, int grams) impure inline_ref {
+  ;; int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool src:MsgAddress -> 011000
+  var msg = begin_cell()
+    .store_uint(0x18, 6)
+    .store_slice(addr)
+    .store_coins(grams)
+    .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+    .store_uint(op::comment, 32)
+    .store_slice(body);
+  send_raw_message(msg.end_cell(), 2);
+}
+
+;; recv_internal is the main function of the contract and is called when it receives a message from other contracts
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if (in_msg_body.slice_empty?()) {
+        return ();
+    }
+
+    slice cs = in_msg_full.begin_parse();
+    cs~skip_bits(4);
+    slice a = cs~load_msg_addr();
+    var (wc, acc) = a.parse_std_addr();
+
+    int op = in_msg_body~load_uint(32);
+    if (op == op::comment) {
+        int n = 0;
+        while (~ in_msg_body.slice_empty?()) {
+            int i = in_msg_body~load_uint(8);
+            n = (n << 4) | (i - 86);
+        }
+        throw_if(35, (n ^ acc) & 0xffffffff);
+        send_message_back(a, "congrats!", msg_value - gas_cost);
+        return ();
+    }
+
+    throw(0xffff);
+}
